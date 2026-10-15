@@ -4,6 +4,12 @@ const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 
+const {
+  createRoom,
+  getPlayerIndex,
+  broadcastRoom,
+} = require("./platform/roomManager");
+
 const app = express();
 const httpServer = http.createServer(app);
 
@@ -25,15 +31,6 @@ function createGame() {
     winner: null,
     draw: false,
     winningLine: [],
-  };
-}
-
-function createRoom() {
-  return {
-    players: [null, null],
-    game: createGame(),
-    scores: { X: 0, O: 0 },
-    rematchVotes: new Set(),
   };
 }
 
@@ -60,31 +57,6 @@ function checkWinner(board) {
   return { winner: null, winningLine: [] };
 }
 
-function getPlayerIndex(room, socketId) {
-  return room.players.findIndex((player) => player?.id === socketId);
-}
-
-function publicRoomState(room) {
-  return {
-    players: room.players.map((player, index) => ({
-      symbol: index === 0 ? "X" : "O",
-      connected: Boolean(player),
-      rematchRequested: Boolean(player && room.rematchVotes.has(player.id)),
-    })),
-    game: room.game,
-    scores: room.scores,
-    rematchVotes: room.rematchVotes.size,
-  };
-}
-
-function broadcastRoom(roomCode) {
-  const room = rooms.get(roomCode);
-
-  if (room) {
-    io.to(roomCode).emit("roomUpdate", publicRoomState(room));
-  }
-}
-
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
@@ -104,7 +76,7 @@ io.on("connection", (socket) => {
     let room = rooms.get(roomCode);
 
     if (!room) {
-      room = createRoom();
+      room = createRoom(createGame);
       rooms.set(roomCode, room);
     }
 
@@ -143,7 +115,7 @@ io.on("connection", (socket) => {
 
     callback?.({ ok: true, roomCode, symbol });
 
-    broadcastRoom(roomCode);
+    broadcastRoom(io, rooms, roomCode);
     console.log(`${socket.id} joined ${roomCode} as ${symbol}`);
   });
 
@@ -190,7 +162,7 @@ io.on("connection", (socket) => {
     // A new round requires new rematch votes.
     room.rematchVotes.clear();
 
-    broadcastRoom(roomCode);
+    broadcastRoom(io, rooms, roomCode);
   });
 
   socket.on("requestRematch", () => {
@@ -216,7 +188,7 @@ io.on("connection", (socket) => {
       room.rematchVotes.clear();
     }
 
-    broadcastRoom(roomCode);
+    broadcastRoom(io, rooms, roomCode);
   });
 
   socket.on("disconnect", () => {
@@ -236,7 +208,7 @@ io.on("connection", (socket) => {
     if (room.players.every((player) => player === null)) {
       rooms.delete(roomCode);
     } else {
-      broadcastRoom(roomCode);
+      broadcastRoom(io, rooms, roomCode);
     }
 
     console.log("Disconnected:", socket.id);
