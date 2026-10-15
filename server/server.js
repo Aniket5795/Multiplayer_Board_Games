@@ -6,9 +6,6 @@ const { Server } = require("socket.io");
 
 const { getGame } = require("./games/registry");
 
-const ticTacToe = getGame("tic-tac-toe");
-const createGame = () => ticTacToe.createGame();
-
 const {
   createRoom,
   getPlayerIndex,
@@ -29,114 +26,226 @@ const io = new Server(httpServer, {
 
 const rooms = new Map();
 
+function createGameFor(gameId) {
+  const gameRules = getGame(gameId);
+
+  if (!gameRules) {
+    throw new Error(`Unknown game: ${gameId}`);
+  }
+
+  return gameRules.createGame();
+}
+
+function getRoomGameRules(room) {
+  return getGame(room.gameId);
+}
+
+function validRoomCode(rawCode) {
+  const roomCode = String(rawCode || "")
+    .trim()
+    .toUpperCase();
+
+  if (!/^[A-Z0-9]{3,12}$/.test(roomCode)) {
+    return null;
+  }
+
+  return roomCode;
+}
+
+function joinGameRoom(socket, rawCode, gameId, callback) {
+  const roomCode = validRoomCode(rawCode);
+
+  if (!roomCode) {
+    callback?.({
+      ok: false,
+      message: "Use 3–12 letters or numbers for the room code.",
+    });
+    return;
+  }
+
+  if (socket.data.roomCode) {
+    callback?.({
+      ok: false,
+      message: "You have already joined a room. Refresh to start again.",
+    });
+    return;
+  }
+
+  const gameRules = getGame(gameId);
+
+  if (!gameRules) {
+    callback?.({
+      ok: false,
+      message: "This game is not available.",
+    });
+    return;
+  }
+
+  let room = rooms.get(roomCode);
+
+  if (room && room.gameId !== gameId) {
+    callback?.({
+      ok: false,
+      message: "This room belongs to a different game.",
+    });
+    return;
+  }
+
+  if (!room) {
+    room = createRoom(() => gameRules.createGame(), gameId);
+    rooms.set(roomCode, room);
+  }
+
+  const playerIndex = room.players.findIndex((player) => player === null);
+
+  if (playerIndex === -1) {
+    callback?.({
+      ok: false,
+      message: "This room already has two players.",
+    });
+    return;
+  }
+
+  const symbol =
+    gameId === "chess"
+      ? playerIndex === 0
+        ? "w"
+        : "b"
+      : playerIndex === 0
+        ? "X"
+        : "O";
+
+  room.players[playerIndex] = {
+    id: socket.id,
+    symbol,
+  };
+
+  room.rematchVotes.clear();
+
+  socket.data.roomCode = roomCode;
+  socket.join(roomCode);
+
+  callback?.({
+    ok: true,
+    roomCode,
+    symbol,
+    gameId,
+  });
+
+  broadcastRoom(io, rooms, roomCode);
+
+  console.log(`${socket.id} joined ${roomCode} as ${symbol} (${gameId})`);
+}
+
+function handleTicTacToeMove(socket, index) {
+  const roomCode = socket.data.roomCode;
+  const room = rooms.get(roomCode);
+
+  if (
+    !room ||
+    room.gameId !== "tic-tac-toe" ||
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index > 8
+  ) {
+    return;
+  }
+
+  const playerIndex = getPlayerIndex(room, socket.id);
+
+  if (playerIndex === -1 || room.players.some((player) => !player)) {
+    return;
+  }
+
+  const symbol = playerIndex === 0 ? "X" : "O";
+  const gameRules = getRoomGameRules(room);
+  const game = room.game;
+
+  if (game.winner || game.draw || game.currentPlayer !== symbol) {
+    return;
+  }
+
+  const nextGame = gameRules.applyMove(game, index);
+
+  if (nextGame === game) {
+    return;
+  }
+
+  room.game = nextGame;
+
+  if (!game.winner && nextGame.winner) {
+    room.scores[nextGame.winner] += 1;
+  }
+
+  room.rematchVotes.clear();
+
+  broadcastRoom(io, rooms, roomCode);
+}
+
+function handleChessMove(socket, move) {
+  const roomCode = socket.data.roomCode;
+  const room = rooms.get(roomCode);
+
+  if (!room || room.gameId !== "chess") {
+    return;
+  }
+
+  const playerIndex = getPlayerIndex(room, socket.id);
+
+  if (playerIndex === -1 || room.players.some((player) => !player)) {
+    return;
+  }
+
+  const symbol = playerIndex === 0 ? "w" : "b";
+  const game = room.game;
+
+  if (game.winner || game.draw || game.currentPlayer !== symbol) {
+    return;
+  }
+
+  const gameRules = getRoomGameRules(room);
+  const nextGame = gameRules.applyMove(game, move);
+
+  // The rules engine returns the same state for invalid moves.
+  if (nextGame === game) {
+    return;
+  }
+
+  room.game = nextGame;
+
+  if (!game.winner && nextGame.winner) {
+    room.scores[nextGame.winner] += 1;
+  }
+
+  room.rematchVotes.clear();
+
+  broadcastRoom(io, rooms, roomCode);
+}
+
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
 
+  // Existing Tic-Tac-Toe joining event.
   socket.on("joinRoom", (rawCode, callback) => {
-    const roomCode = String(rawCode || "")
-      .trim()
-      .toUpperCase();
-
-    if (!/^[A-Z0-9]{3,12}$/.test(roomCode)) {
-      callback?.({
-        ok: false,
-        message: "Use 3–12 letters or numbers for the room code.",
-      });
-      return;
-    }
-
-    let room = rooms.get(roomCode);
-
-    if (!room) {
-      room = createRoom(createGame);
-      rooms.set(roomCode, room);
-    }
-
-    // Prevent one socket from joining multiple rooms.
-    if (socket.data.roomCode) {
-      callback?.({
-        ok: false,
-        message: "You have already joined a room. Refresh to start again.",
-      });
-      return;
-    }
-
-    // Reuse the first available player slot.
-    const playerIndex = room.players.findIndex((player) => player === null);
-
-    if (playerIndex === -1) {
-      callback?.({
-        ok: false,
-        message: "This room already has two players.",
-      });
-      return;
-    }
-
-    const symbol = playerIndex === 0 ? "X" : "O";
-
-    room.players[playerIndex] = {
-      id: socket.id,
-      symbol,
-    };
-
-    // A new player joining invalidates old rematch votes.
-    room.rematchVotes.clear();
-
-    socket.data.roomCode = roomCode;
-    socket.join(roomCode);
-
-    callback?.({ ok: true, roomCode, symbol });
-
-    broadcastRoom(io, rooms, roomCode);
-    console.log(`${socket.id} joined ${roomCode} as ${symbol}`);
+    joinGameRoom(socket, rawCode, "tic-tac-toe", callback);
   });
 
+  // New Chess joining event.
+  socket.on("joinChessRoom", (rawCode, callback) => {
+    joinGameRoom(socket, rawCode, "chess", callback);
+  });
+
+  // Existing Tic-Tac-Toe move event.
   socket.on("makeMove", (index) => {
-    const roomCode = socket.data.roomCode;
-    const room = rooms.get(roomCode);
-
-    if (!room || !Number.isInteger(index) || index < 0 || index > 8) {
-      return;
-    }
-
-    const playerIndex = getPlayerIndex(room, socket.id);
-
-    if (playerIndex === -1 || room.players.some((p) => !p)) {
-      return;
-    }
-
-    const symbol = playerIndex === 0 ? "X" : "O";
-    const game = room.game;
-
-    if (
-      game.winner ||
-      game.draw ||
-      game.currentPlayer !== symbol ||
-      game.board[index] !== null
-    ) {
-      return;
-    }
-
-    game.board[index] = symbol;
-
-    const result = checkWinner(game.board);
-    game.winner = result.winner;
-    game.winningLine = result.winningLine;
-
-    if (game.winner) {
-      room.scores[game.winner] += 1;
-    } else if (game.board.every((cell) => cell !== null)) {
-      game.draw = true;
-    } else {
-      game.currentPlayer = symbol === "X" ? "O" : "X";
-    }
-
-    // A new round requires new rematch votes.
-    room.rematchVotes.clear();
-
-    broadcastRoom(io, rooms, roomCode);
+    handleTicTacToeMove(socket, index);
   });
 
+  // New Chess move event.
+  socket.on("makeChessMove", (move) => {
+    handleChessMove(socket, move);
+  });
+
+  // Shared rematch system for both games.
   socket.on("requestRematch", () => {
     const roomCode = socket.data.roomCode;
     const room = rooms.get(roomCode);
@@ -156,7 +265,7 @@ io.on("connection", (socket) => {
     );
 
     if (bothPlayersAgreed) {
-      room.game = createGame();
+      room.game = createGameFor(room.gameId);
       room.rematchVotes.clear();
     }
 
@@ -167,7 +276,10 @@ io.on("connection", (socket) => {
     const roomCode = socket.data.roomCode;
     const room = rooms.get(roomCode);
 
-    if (!room) return;
+    if (!room) {
+      console.log("Disconnected:", socket.id);
+      return;
+    }
 
     const playerIndex = getPlayerIndex(room, socket.id);
 
@@ -176,7 +288,6 @@ io.on("connection", (socket) => {
       room.rematchVotes.clear();
     }
 
-    // Delete empty rooms to avoid accumulating unused rooms.
     if (room.players.every((player) => player === null)) {
       rooms.delete(roomCode);
     } else {
@@ -207,6 +318,7 @@ app.use((req, res, next) => {
 });
 
 const PORT = process.env.PORT || 3001;
+
 httpServer.listen(PORT, () => {
   console.log(`Game server running on port ${PORT}`);
 });
