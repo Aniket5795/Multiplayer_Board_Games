@@ -4,6 +4,11 @@ const http = require("http");
 const cors = require("cors");
 const { Server } = require("socket.io");
 
+const { getGame } = require("./games/registry");
+
+const ticTacToe = getGame("tic-tac-toe");
+const createGame = () => ticTacToe.createGame();
+
 const {
   createRoom,
   getPlayerIndex,
@@ -23,39 +28,6 @@ const io = new Server(httpServer, {
 });
 
 const rooms = new Map();
-
-function createGame() {
-  return {
-    board: Array(9).fill(null),
-    currentPlayer: "X",
-    winner: null,
-    draw: false,
-    winningLine: [],
-  };
-}
-
-function checkWinner(board) {
-  const lines = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ];
-
-  for (const line of lines) {
-    const [a, b, c] = line;
-
-    if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-      return { winner: board[a], winningLine: line };
-    }
-  }
-
-  return { winner: null, winningLine: [] };
-}
 
 io.on("connection", (socket) => {
   console.log("Connected:", socket.id);
