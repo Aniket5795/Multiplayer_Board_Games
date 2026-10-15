@@ -1,0 +1,102 @@
+.chess-board {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  width: min(90vw, 560px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 4px solid #202633;
+  border-radius: 8px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 25%);
+}
+
+.chess-square {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+}
+
+.chess-square.light {
+  background: #f0d9b5;
+}
+
+.chess-square.dark {
+  background: #b58863;
+}
+
+.chess-square.selected {
+  box-shadow: inset 0 0 0 4px #facc15;
+}
+
+.chess-square.last-move {
+  background-image: linear-gradient(
+    rgb(250 204 21 / 28%),
+    rgb(250 204 21 / 28%)
+  );
+}
+
+.chess-square:disabled {
+  cursor: default;
+}
+
+.chess-piece {
+  font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", sans-serif;
+  font-size: clamp(1.4rem, 6vw, 3.5rem);
+  line-height: 1;
+  user-select: none;
+}
+
+.white-piece {
+  color: #fffdf5;
+  text-shadow:
+    -1px -1px 1px #222,
+    1px -1px 1px #222,
+    -1px 1px 1px #222,
+    1px 1px 1px #222,
+    0 2px 3px rgb(0 0 0 / 60%);
+}
+
+.black-piece {
+  color: #202020;
+  text-shadow: 0 1px 1px rgb(255 255 255 / 20%);
+}
+
+.chess-rank-label,
+.chess-file-label {
+  position: absolute;
+  font-size: clamp(0.55rem, 1.6vw, 0.75rem);
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.chess-rank-label {
+  top: 3px;
+  left: 4px;
+}
+
+.chess-file-label {
+  right: 4px;
+  bottom: 2px;
+}
+
+.chess-square.light .chess-rank-label,
+.chess-square.light .chess-file-label {
+  color: #805b3b;
+}
+
+.chess-square.dark .chess-rank-label,
+.chess-square.dark .chess-file-label {
+  color: #f8e9d6;
+}
+
+@media (max-width: 480px) {
+  .chess-board {
+    width: min(94vw, 560px);
+    border-width: 2px;
+  }
+}

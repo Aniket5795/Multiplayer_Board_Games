@@ -1,0 +1,48 @@
+.chess-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 20px 12px;
+  box-sizing: border-box;
+}
+
+.chess-game p {
+  margin: 4px 0;
+  text-align: center;
+}
+
+.chess-room-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: center;
+  gap: 12px;
+}
+
+.chess-room-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.chess-room-controls input {
+  min-width: 150px;
+  padding: 10px;
+  border: 1px solid #777;
+  border-radius: 6px;
+}
+
+.chess-room-controls button,
+.chess-game > button {
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.chess-room-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}

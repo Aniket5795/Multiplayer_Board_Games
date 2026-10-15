@@ -5,6 +5,7 @@ import {
   applyMove,
   chooseComputerMove,
 } from "./games/ticTacToe/logic";
+import ChessGame from "./games/chess/ChessGame";
 import "./App.css";
 
 const SERVER_URL = import.meta.env.DEV
@@ -13,6 +14,7 @@ const SERVER_URL = import.meta.env.DEV
 
 export default function App() {
   const socketRef = useRef(null);
+  const [selectedGame, setSelectedGame] = useState("tic-tac-toe");
 
   const [mode, setMode] = useState("computer");
   const [difficulty, setDifficulty] = useState("medium");
@@ -195,155 +197,179 @@ export default function App() {
         </p>
       </header>
 
-      <section className="mode-panel">
-        <h2>Choose your mode</h2>
-        <div className="mode-buttons">
-          <button
-            className={
-              mode === "computer" ? "mode-button selected" : "mode-button"
-            }
-            onClick={() => changeMode("computer")}
-          >
-            Computer vs User
-          </button>
-          <button
-            className={
-              mode === "online" ? "mode-button selected" : "mode-button"
-            }
-            onClick={() => changeMode("online")}
-          >
-            Online Multiplayer
-          </button>
-        </div>
-
-        {mode === "computer" ? (
-          <div className="difficulty-row">
-            <label htmlFor="difficulty">Computer difficulty</label>
-            <select
-              id="difficulty"
-              value={difficulty}
-              onChange={(event) => setDifficulty(event.target.value)}
-            >
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
-          </div>
-        ) : (
-          <div className="room-panel">
-            <label htmlFor="room-code">Room code</label>
-            <div className="room-controls">
-              <input
-                id="room-code"
-                value={roomInput}
-                onChange={(event) =>
-                  setRoomInput(event.target.value.toUpperCase())
-                }
-                maxLength={12}
-                placeholder="Enter 3–12 letters or numbers"
-              />
-              <button onClick={joinRoom} disabled={!connected}>
-                Join room
-              </button>
-            </div>
-            {roomCode && (
-              <div className="room-share">
-                <span>
-                  Room: <strong>{roomCode}</strong> · You are {symbol}
-                </span>
-                <button className="secondary-button" onClick={copyRoomCode}>
-                  Copy code
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      <section className="game-panel">
-        <div className="game-status">
-          <span className="status-dot" />
-          <span>{status}</span>
-        </div>
-
-        <div className="scoreboard">
-          <div
-            className={
-              activeGame.currentPlayer === "X" && !roundOver
-                ? "score-card active"
-                : "score-card"
-            }
-          >
-            <span className="score-symbol">X</span>
-            <span>{mode === "computer" ? "You" : "Player X"}</span>
-            <strong>{activeScores.X}</strong>
-          </div>
-          <div className="score-card">
-            <span className="score-symbol">O</span>
-            <span>{mode === "computer" ? "Computer" : "Player O"}</span>
-            <strong>{activeScores.O}</strong>
-          </div>
-        </div>
-
-        <div className="board" role="group" aria-label="Tic-Tac-Toe board">
-          {activeGame.board.map((cell, index) => (
-            <button
-              key={index}
-              className={[
-                "square",
-                cell ? `square-${cell.toLowerCase()}` : "",
-                activeGame.winningLine.includes(index) ? "winning-square" : "",
-              ].join(" ")}
-              onClick={() =>
-                mode === "computer"
-                  ? handleLocalMove(index)
-                  : handleOnlineMove(index)
-              }
-              disabled={
-                Boolean(cell) ||
-                roundOver ||
-                (mode === "computer" && localGame.currentPlayer !== "X") ||
-                (mode === "online" &&
-                  (!roomCode ||
-                    !symbol ||
-                    !players.every((player) => player?.connected) ||
-                    onlineGame.currentPlayer !== symbol))
-              }
-              aria-label={`Square ${index + 1}${cell ? `, ${cell}` : ", empty"}`}
-            >
-              {cell}
-            </button>
-          ))}
-        </div>
-
-        {roundOver && (
-          <div className="result-message">
-            {activeGame.winner
-              ? `${
-                  activeGame.winner === "X"
-                    ? mode === "computer"
-                      ? "You"
-                      : "Player X"
-                    : mode === "computer"
-                      ? "The computer"
-                      : "Player O"
-                } won this round.`
-              : "The round ended in a draw."}
-          </div>
-        )}
-
+      <div className="game-selector">
         <button
-          className="primary-button"
-          onClick={startNewRound}
-          disabled={mode === "online" && !roundOver}
+          className={selectedGame === "tic-tac-toe" ? "active" : ""}
+          onClick={() => setSelectedGame("tic-tac-toe")}
         >
-          {mode === "computer" ? "Play again" : "Request rematch"}
+          Tic-Tac-Toe
         </button>
 
-        <p className="message" aria-live="polite">
-          {message}
-        </p>
-      </section>
+        <button
+          className={selectedGame === "chess" ? "active" : ""}
+          onClick={() => setSelectedGame("chess")}
+        >
+          Chess
+        </button>
+      </div>
+
+      {selectedGame === "chess" ? (
+        <ChessGame />
+      ) : (
+        <>
+          <section className="mode-panel">
+            <h2>Choose your mode</h2>
+            <div className="mode-buttons">
+              <button
+                className={
+                  mode === "computer" ? "mode-button selected" : "mode-button"
+                }
+                onClick={() => changeMode("computer")}
+              >
+                Computer vs User
+              </button>
+              <button
+                className={
+                  mode === "online" ? "mode-button selected" : "mode-button"
+                }
+                onClick={() => changeMode("online")}
+              >
+                Online Multiplayer
+              </button>
+            </div>
+
+            {mode === "computer" ? (
+              <div className="difficulty-row">
+                <label htmlFor="difficulty">Computer difficulty</label>
+                <select
+                  id="difficulty"
+                  value={difficulty}
+                  onChange={(event) => setDifficulty(event.target.value)}
+                >
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+            ) : (
+              <div className="room-panel">
+                <label htmlFor="room-code">Room code</label>
+                <div className="room-controls">
+                  <input
+                    id="room-code"
+                    value={roomInput}
+                    onChange={(event) =>
+                      setRoomInput(event.target.value.toUpperCase())
+                    }
+                    maxLength={12}
+                    placeholder="Enter 3–12 letters or numbers"
+                  />
+                  <button onClick={joinRoom} disabled={!connected}>
+                    Join room
+                  </button>
+                </div>
+                {roomCode && (
+                  <div className="room-share">
+                    <span>
+                      Room: <strong>{roomCode}</strong> · You are {symbol}
+                    </span>
+                    <button className="secondary-button" onClick={copyRoomCode}>
+                      Copy code
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          <section className="game-panel">
+            <div className="game-status">
+              <span className="status-dot" />
+              <span>{status}</span>
+            </div>
+
+            <div className="scoreboard">
+              <div
+                className={
+                  activeGame.currentPlayer === "X" && !roundOver
+                    ? "score-card active"
+                    : "score-card"
+                }
+              >
+                <span className="score-symbol">X</span>
+                <span>{mode === "computer" ? "You" : "Player X"}</span>
+                <strong>{activeScores.X}</strong>
+              </div>
+              <div className="score-card">
+                <span className="score-symbol">O</span>
+                <span>{mode === "computer" ? "Computer" : "Player O"}</span>
+                <strong>{activeScores.O}</strong>
+              </div>
+            </div>
+
+            <div className="board" role="group" aria-label="Tic-Tac-Toe board">
+              {activeGame.board.map((cell, index) => (
+                <button
+                  key={index}
+                  className={[
+                    "square",
+                    cell ? `square-${cell.toLowerCase()}` : "",
+                    activeGame.winningLine.includes(index)
+                      ? "winning-square"
+                      : "",
+                  ].join(" ")}
+                  onClick={() =>
+                    mode === "computer"
+                      ? handleLocalMove(index)
+                      : handleOnlineMove(index)
+                  }
+                  disabled={
+                    Boolean(cell) ||
+                    roundOver ||
+                    (mode === "computer" && localGame.currentPlayer !== "X") ||
+                    (mode === "online" &&
+                      (!roomCode ||
+                        !symbol ||
+                        !players.every((player) => player?.connected) ||
+                        onlineGame.currentPlayer !== symbol))
+                  }
+                  aria-label={`Square ${index + 1}${cell ? `, ${cell}` : ", empty"}`}
+                >
+                  {cell}
+                </button>
+              ))}
+            </div>
+
+            {roundOver && (
+              <div className="result-message">
+                {activeGame.winner
+                  ? `${
+                      activeGame.winner === "X"
+                        ? mode === "computer"
+                          ? "You"
+                          : "Player X"
+                        : mode === "computer"
+                          ? "The computer"
+                          : "Player O"
+                    } won this round.`
+                  : "The round ended in a draw."}
+              </div>
+            )}
+
+            <button
+              className="primary-button"
+              onClick={startNewRound}
+              disabled={mode === "online" && !roundOver}
+            >
+              {mode === "computer" ? "Play again" : "Request rematch"}
+            </button>
+
+            <p className="message" aria-live="polite">
+              {message}
+            </p>
+          </section>
+        </>
+      )}
 
       <footer className="footer">
         <span>Computer mode runs locally in your browser.</span>
